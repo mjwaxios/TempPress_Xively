@@ -1,0 +1,6 @@
+Arduino Code for BMP185, DHT22, OLEDSSD1306
+
+Downloads KIAD SeaLevelPressure from the METAR, parses it, and uses it for Altitude Correction
+Reads sensors and posts to Xively via the Yun Shield.
+Outputs the sensor data to the OLED
+
