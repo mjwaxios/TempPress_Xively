@@ -17,6 +17,7 @@
 
 // Pins
 #define DHPIN 4
+#define LEDPIN 6
 
 // Yun
 #include <Process.h>
@@ -34,6 +35,10 @@
 #include "SSD1306Ascii.h"
 #include "SSD1306AsciiAvrI2c.h"
 SSD1306AsciiAvrI2c oled;
+
+//NeoPixels
+#include <Adafruit_NeoPixel.h>
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(150, LEDPIN, NEO_GRB + NEO_KHZ800);
 
 // Temperature Sensor
 Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
@@ -100,6 +105,9 @@ void uploadScript() {
 /**************************************************************************/
 void setup(void) 
 {
+  strip.begin();
+  strip.show(); // Initialize all pixels to 'off'
+
   oled.begin(&Adafruit128x64, I2C_ADDRESS);
   oled.setFont(FONTBIG);
   oled.clear();
@@ -125,6 +133,145 @@ void setup(void)
 
   uploadScript();
   GetAndSetSLP();
+  if (SLPFoundFlag) {
+    Green();
+    delay(1000);
+  } else {
+    Red();
+    delay(1000);
+  }
+}
+
+/**************************************************************************/
+// Convert from HSV to RGB for the Led Colors
+/**************************************************************************/
+void HSVtoRGB(int hue, int sat, int val,int *colors) {
+  int r, g, b, base;                                                 
+
+  if (sat == 0) {                            
+    colors[0]=val;
+    colors[1]=val;
+    colors[2]=val;
+  } else  {
+    base = ((255 - sat) * val)>>8;
+    switch(hue/60) {
+      case 0:
+        colors[0] = val;
+        colors[1] = (((val-base)*hue)/60)+base;
+        colors[2] = base;
+        break;
+      case 1:
+        colors[0] = (((val-base)*(60-(hue%60)))/60)+base;
+        colors[1] = val;
+        colors[2] = base;
+        break;
+      case 2:
+        colors[0] = base;
+        colors[1] = val;
+        colors[2] = (((val-base)*(hue%60))/60)+base;
+        break;
+      case 3:
+        colors[0] = base;
+        colors[1] = (((val-base)*(60-(hue%60)))/60)+base;
+        colors[2] = val;
+        break;
+      case 4:
+        colors[0] = (((val-base)*(hue%60))/60)+base;
+        colors[1] = base;
+        colors[2] = val;
+        break;
+      case 5:
+        colors[0] = val;
+        colors[1] = base;
+        colors[2] = (((val-base)*(60-(hue%60)))/60)+base;
+        break;
+    }
+    
+  }
+}
+
+/**************************************************************************/
+//  Fill in the Led colors for a nice display
+/**************************************************************************/
+void ColorIt() {
+  for (int x=0; x < 150; x++) {
+//   strip.setPixelColor(x, random(255),random(255),random(255));
+    int color[3];
+//    int ran = random(0,150) - 30;
+//    if (ran < 0) ran += 360;
+/*
+    int r = random(0,3);
+    switch (r) {
+      case 0:
+        strip.setPixelColor(x, 255, 0, 0);    
+        break;
+      case 1:
+        strip.setPixelColor(x, 0, 255, 0);          
+        break;
+      case 2:
+        strip.setPixelColor(x, 0, 0, 255);          
+        break;
+    }
+*/
+    int hue = random(0, 360);    
+    int sat = random(64,256);
+    int val = random(128,256);
+    HSVtoRGB(hue, sat, val, color);
+    strip.setPixelColor(x, color[0], color[1], color[2]);
+  }
+  strip.show();
+}
+
+/**************************************************************************/
+// Fill in all Leds with a color
+/**************************************************************************/
+void FillAll(byte red, byte green, byte blue) {
+  for (int x=0; x < 150; x++) {
+    strip.setPixelColor(x, red, green, blue);
+  }
+  strip.show();  
+}
+
+/**************************************************************************/
+// Fill in all Red
+/**************************************************************************/
+void Red() {
+  FillAll(255, 0, 0);
+}
+
+/**************************************************************************/
+// Fill in all Green
+/**************************************************************************/
+void Green() {
+  FillAll(0, 255, 0);
+}
+
+/**************************************************************************/
+// Fill in all Blue
+/**************************************************************************/
+void Blue() {
+  FillAll(0, 0, 255);
+}
+
+/**************************************************************************/
+// Fill in all Yellow
+/**************************************************************************/
+void Yellow() {
+  FillAll(255, 255, 0);
+}
+
+/**************************************************************************/
+// Fill in all Magenta
+/**************************************************************************/
+void Magenta() {
+  FillAll(255, 0, 255);
+}
+
+/**************************************************************************/
+// Fill in all Cyan
+/**************************************************************************/
+void Cyan() {
+  FillAll(0, 255, 255);
 }
 
 //****************************************************************
@@ -217,7 +364,7 @@ void GetSensorDataAndPost() {
   sensors_event_t event;
   bmp.getEvent(&event);
 
- // Check to see if we got the Sensor Data
+  // Check to see if we got the Sensor Data
   if (event.pressure)  {   
     bmp.getTemperature(&temperature);
     Alt = bmp.pressureToAltitude(SLPress, event.pressure);
@@ -264,6 +411,10 @@ void GetSensorDataAndPost() {
   }
 }
 
+bool ledflip = 0;
+int lastledtime = 0;
+int ledcolor = 0;
+
 /**************************************************************************/
 /*
     Arduino loop function, called once 'setup' is complete (your own code
@@ -282,17 +433,60 @@ void loop(void)
     lasttime = curtime;
     seconds++;
     // Check for SLP update Time
-    if ((seconds % SLPUPDATETIME) == 0) GetAndSetSLP();   
-  
+    if ((seconds % SLPUPDATETIME) == 0) {
+      Blue();
+      GetAndSetSLP();          
+      if (SLPFoundFlag) {
+        Green();
+        delay(100);
+      }
+    }
+
     // Check for Data Update Time
-    if ((seconds % DATAUPDATETIME) == 0) GetSensorDataAndPost();   
+    if ((seconds % DATAUPDATETIME) == 0) {
+      Yellow();
+      GetSensorDataAndPost();   
+    }
 
     // Check for seconds Wrap
     if(seconds == WRAPTIME) seconds = 0;
-//    Console.println(seconds);
+/*
+    ledcolor = 0;
+    if ((seconds%5) == 0) {
+      ledcolor = 1;
+      lastledtime = seconds;
+    } 
+    if ((seconds%15) == 0) {
+      ledcolor = 2;
+      lastledtime = seconds;
+    }   
+*/    
   } // Once Second Passed
 
-  delay(100);  // Just so we don't spin
+/*
+  ledflip = !ledflip;
+  if (ledflip) {
+    switch (ledcolor) {
+      case 0: 
+        strip.clear(); 
+        strip.show();
+        break;
+      case 1: Yellow(); 
+        break;
+      case 2: Blue(); 
+        break;   
+    }
+  } else {
+    strip.clear();
+    strip.show();
+  }
+*/
+  if (SLPFoundFlag) {
+    ColorIt();  
+  } else {
+    Red();
+  }
+  delay(400);  // Just so we don't spin
 } // loop
 
 
