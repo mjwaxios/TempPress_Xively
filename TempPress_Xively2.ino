@@ -110,14 +110,17 @@ void setup(void)
   Console.begin();
   FileSystem.begin();
 
+  oled.clear();
+  oled.print("MJW - Yun Done");
+
   //while(!Console);
   Console.println(F("Welcome to BMP185, DHT22 and Xively Demo from MJW")); 
 
   if(!bmp.begin())
   {
-    /* There was a problem detecting the BMP085 ... check your connections */
+    oled.clear();
+    oled.print("No BMP");
     Console.print(F("no BMP185 detected ... Check your wiring or I2C ADDR!"));
-    while(1);
   } 
 
   // DHT Sensor
